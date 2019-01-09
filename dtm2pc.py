@@ -57,15 +57,16 @@ def get_map_coord(dtm):
 
 
 def transform_coord(system, dtm, map_x, map_y, map_elev):
+    if system == System.src:
+        return map_x, map_y, map_elev
+
     dtm_srs = osr.SpatialReference()
     dtm_srs.ImportFromWkt(dtm.GetProjection())
     from_p = pyproj.Proj(dtm_srs.ExportToProj4())
-    if system == System.geocent:
-        to_p = pyproj.Proj(proj="geocent", a=1737400, b=1737400, units="m")
-    elif system == System.latlong:
-        to_p = pyproj.Proj(proj="latlong", a=1737400, b=1737400, units="m")
-    else:
-        return map_x, map_y, map_elev
+
+    to_p = pyproj.Proj(
+        proj=str(system),
+        units="m")
 
     return pyproj.transform(
         from_p, to_p, map_x, map_y, map_elev, radians=False)
@@ -82,7 +83,7 @@ def main():
     names = "x, y, z"
     formats = "f4, f4, f4"
     if args.texture:
-        # TODO DTMとテクスチャのサイズ|分解能が違う場合に対応するg
+        # TODO DTMとテクスチャのサイズ|分解能が違う場合に対応する
         tex = gdal.Open(str(args.texture), gdalconst.GA_ReadOnly)
         tex_data = tex.GetRasterBand(1).ReadAsArray().astype(np.uint8)
         body.extend([tex_data, tex_data, tex_data])
