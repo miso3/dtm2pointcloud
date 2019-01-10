@@ -66,6 +66,8 @@ def transform_coord(system, dtm, map_x, map_y, map_elev):
 
     to_p = pyproj.Proj(
         proj=str(system),
+        a=dtm_srs.GetSemiMajor(),
+        b=dtm_srs.GetSemiMinor(),
         units="m")
 
     return pyproj.transform(
