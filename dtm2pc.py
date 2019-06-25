@@ -5,7 +5,6 @@ import argparse
 
 from osgeo import gdal, gdalconst
 from plyfile import PlyElement, PlyData
-from tqdm import tqdm
 import numpy as np
 import osr
 import ogr
@@ -16,6 +15,7 @@ class System(Enum):
     latlong = "latlong"
     geocent = "geocent"
     src = "src"
+    imgcent = "imgcent"
 
     def __str__(self):
         return self.value
@@ -58,6 +58,12 @@ def get_map_coord(dtm):
 
 def transform_coord(system, dtm, map_x, map_y, map_elev):
     if system == System.src:
+        return map_x, map_y, map_elev
+    elif system == System.imgcent:
+        cy, cx = map_x.shape[0] // 2, map_x.shape[1] // 2
+        map_x -= map_x[cy, cx]
+        map_y -= map_y[cy, cx]
+        map_elev -= map_elev[cy, cx]
         return map_x, map_y, map_elev
 
     dtm_srs = osr.SpatialReference()

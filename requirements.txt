@@ -1,0 +1,5 @@
+numpy==1.15.4
+pkg-resources==0.0.0
+plyfile==0.7
+pyproj==1.9.6
+GDAL==2.2.3
