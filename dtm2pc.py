@@ -12,17 +12,21 @@ import pyproj
 
 
 class System(Enum):
-    latlong = "latlong"
-    geocent = "geocent"
-    src = "src"
-    imgcent = "imgcent"
+    """
+    """
+
+    latlong = "latlong"  # latitude & longitude (deg)
+    geocent = "geocent"  # geo centric coordinate (m)
+    src = "src"  # inherit source dtm coodinate system
+    imgcent = "imgcent"  # image center xyz (m)
 
     def __str__(self):
         return self.value
 
 
 def get_args():
-    parser = argparse.ArgumentParser("Convert DTM tiff to point cloud(PLY)")
+    parser = argparse.ArgumentParser(
+        "Convert DTM tiff file to point cloud format(PLY)")
     parser.add_argument("dtm", type=Path, help="DTM tiff file")
     parser.add_argument("dest", type=Path, help="PLY file")
     parser.add_argument("--texture", type=Path, help="texture tiff file")
@@ -31,6 +35,8 @@ def get_args():
     parser.add_argument("--system", type=System, choices=list(System),
                         default=System.src,
                         help="choose output coordinate system")
+    parser.add_argument("--downsample", type=int, default=1,
+                        help="decrease sample rate")
 
     args = parser.parse_args()
 
@@ -86,6 +92,13 @@ def main():
     dtm = gdal.Open(str(args.dtm), gdalconst.GA_ReadOnly)
     map_x, map_y, map_elev = get_map_coord(dtm)
     o_x, o_y, o_z = transform_coord(args.system, dtm, map_x, map_y, map_elev)
+    print(o_x.shape)
+    if args.downsample > 1:
+
+        o_x = o_x[::args.downsample, ::args.downsample]
+        o_y = o_y[::args.downsample, ::args.downsample]
+        o_z = o_z[::args.downsample, ::args.downsample]
+        map_elev = map_elev[::args.downsample, ::args.downsample]
 
     body = [o_x, o_y, o_z]
     names = "x, y, z"
@@ -94,6 +107,9 @@ def main():
         # TODO DTMとテクスチャのサイズ|分解能が違う場合に対応する
         tex = gdal.Open(str(args.texture), gdalconst.GA_ReadOnly)
         tex_data = tex.GetRasterBand(1).ReadAsArray().astype(np.uint8)
+        if args.downsample > 1:
+            tex_data = tex_data[::args.downsample, ::args.downsample]
+
         body.extend([tex_data, tex_data, tex_data])
         names += ", red, green, blue"
         formats += ", u1, u1, u1"
