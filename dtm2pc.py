@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from enum import Enum
 from pathlib import Path
 import argparse
@@ -18,7 +17,7 @@ class System(Enum):
     latlong = "latlong"  # latitude & longitude (deg)
     geocent = "geocent"  # geo centric coordinate (m)
     src = "src"  # inherit source dtm coodinate system
-    imgcent = "imgcent"  # image center xyz (m)
+    imgcent = "imgcent"  # relative xyz coordinate from image center pixel (m)
 
     def __str__(self):
         return self.value
@@ -26,7 +25,7 @@ class System(Enum):
 
 def get_args():
     parser = argparse.ArgumentParser(
-        "Convert DTM tiff file to point cloud format(PLY)")
+        "Convert DTM file to point cloud format(PLY)")
     parser.add_argument("dtm", type=Path, help="DTM tiff file")
     parser.add_argument("dest", type=Path, help="PLY file")
     parser.add_argument("--texture", type=Path, help="texture tiff file")
@@ -37,6 +36,8 @@ def get_args():
                         help="choose output coordinate system")
     parser.add_argument("--downsample", type=int, default=1,
                         help="decrease sample rate")
+    parser.add_argument("--normtexture", default=False, action="store_true",
+                        help="")
 
     args = parser.parse_args()
 
@@ -86,15 +87,20 @@ def transform_coord(system, dtm, map_x, map_y, map_elev):
         from_p, to_p, map_x, map_y, map_elev, radians=False)
 
 
+def normalize_texture(tex_data):
+    tex_data = np.clip((tex_data - tex_data[tex_data > 0].mean()) / (
+        tex_data[tex_data > 0].std() * 2), -1.0, 1.0) * 127 + 127
+
+    return tex_data
+
+
 def main():
     args = get_args()
 
     dtm = gdal.Open(str(args.dtm), gdalconst.GA_ReadOnly)
     map_x, map_y, map_elev = get_map_coord(dtm)
     o_x, o_y, o_z = transform_coord(args.system, dtm, map_x, map_y, map_elev)
-    print(o_x.shape)
     if args.downsample > 1:
-
         o_x = o_x[::args.downsample, ::args.downsample]
         o_y = o_y[::args.downsample, ::args.downsample]
         o_z = o_z[::args.downsample, ::args.downsample]
@@ -103,13 +109,18 @@ def main():
     body = [o_x, o_y, o_z]
     names = "x, y, z"
     formats = "f4, f4, f4"
+
     if args.texture:
         # TODO DTMとテクスチャのサイズ|分解能が違う場合に対応する
         tex = gdal.Open(str(args.texture), gdalconst.GA_ReadOnly)
-        tex_data = tex.GetRasterBand(1).ReadAsArray().astype(np.uint8)
+        tex_data = tex.GetRasterBand(1).ReadAsArray()
         if args.downsample > 1:
             tex_data = tex_data[::args.downsample, ::args.downsample]
 
+        if args.normtexture:
+            tex_data = normalize_texture(tex_data)
+
+        tex_data = tex_data.astype(np.uint8())
         body.extend([tex_data, tex_data, tex_data])
         names += ", red, green, blue"
         formats += ", u1, u1, u1"
